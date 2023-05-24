@@ -3,60 +3,49 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <poll.h>
+#include <pthread.h>
+
+#define CONNECTIONS_NUM 2064
+#define PORT 9034
+
+typedef struct reactor reactor;
+
+typedef void (*handler_t)(int, reactor *react);
+
+typedef struct fd_handler{
+    int fd;
+    handler_t handler;
+}fd_handler;
+
+struct reactor{
+    pthread_t thread;
+    struct pollfd fds[CONNECTIONS_NUM];
+    int size;
+    int isActive;
+    int listener;
+    fd_handler fd_handlers[CONNECTIONS_NUM];
+};
 
 
-#define HASHMAP_SIZE 10
+reactor* createReactor();
 
-// Define the function signature for the function stored in the hash map
-typedef void (*handler_t)(int);
+void startReactor(reactor *reactor);
 
-// Define the key-value pair struct
-typedef struct {
-    int key;
-    FunctionPtr value;
-} KeyValuePair;
+void stopReactor(reactor* reactor);
 
-// Define the hash map struct
-typedef struct {
-    KeyValuePair** data;
-    int capacity;
-} HashMap;
+void addFd(reactor* reactor, int fd, handler_t handler);
 
-// Hash function
-int hash(int key, int capacity);
+void waitFor(reactor* reactor);
 
-// Create a new key-value pair
-KeyValuePair* create_pair(int key,  handler_t handler);
-
-// Initialize the hash map
-HashMap* create_hashmap(int capacity) ;
-
-// Insert a key-value pair into the hash map
-void insert(HashMap* map, int key, handler_t handler);
-
-// Retrieve the value associated with a key
-FunctionPtr get(HashMap* map, int key);
-
-// Remove a key-value pair from the hash map
-void remove_pair(HashMap* map, int key);
-
-// Free the memory allocated for the hash map
-void free_hashmap(HashMap* map);
-
-// Example function to be stored in the hash map
-void example_function(int fd);
-
-
-
-void* createReactor();
-
-void startReactor(void* reactor);
-
-void stopReactor(void* reactor);
-
-void addFd(void* reactor, int fd, handler_t handler);
-
-void waitFor(void* reactor);
+void removeFd(reactor* reactor, int fd);
 
 
 #endif

@@ -1,80 +1,146 @@
 #include "reactor.h"
 
-int hash(int key, int capacity) {
-    return abs(key) % capacity;
-}
 
-// Create a new key-value pair
-KeyValuePair* create_pair(int key, handler_t handler) {
-    KeyValuePair* pair = malloc(sizeof(KeyValuePair));
-    pair->key = key;
-    pair->value = value;
-    return pair;
-}
-
-// Initialize the hash map
-HashMap* create_hashmap(int capacity) {
-    HashMap* map = malloc(sizeof(HashMap));
-    map->data = malloc(capacity * sizeof(KeyValuePair*));
-    map->capacity = capacity;
-    for (int i = 0; i < capacity; i++) {
-        map->data[i] = NULL;
+void *runReactor(reactor *reactor){
+    if(reactor == NULL){
+        perror("reactor pointer not initialized.\n");
+        EXIT_FAILURE;
     }
-    return map;
-}
+    
+    while (reactor->isActive){   
+        int poll_count = poll(reactor->fds, reactor->size, -1);
 
-// Insert a key-value pair into the hash map
-void insert(HashMap* map, int key, handler_t handler) {
-    int index = hash(key, map->capacity);
-    KeyValuePair* pair = create_pair(key, value);
-    map->data[index] = pair;
-}
+        if (poll_count == -1) {
+            perror("poll");
+            exit(1);
+        }
 
-// Retrieve the value associated with a key
-FunctionPtr get(HashMap* map, int key) {
-    int index = hash(key, map->capacity);
-    KeyValuePair* pair = map->data[index];
-    if (pair != NULL && pair->key == key) {
-        return pair->value;
+        for (int i = 0; i < reactor->size && reactor->isActive; i++){
+            if(reactor->fds[i].fd & POLLIN){
+                reactor->fd_handlers[i].handler(reactor->fds[i].fd, reactor);
+            }
+        }    
     }
-    return NULL;  // Key not found
+    return NULL;
+    
 }
 
-// Remove a key-value pair from the hash map
-void remove_pair(HashMap* map, int key) {
-    int index = hash(key, map->capacity);
-    KeyValuePair* pair = map->data[index];
-    if (pair != NULL && pair->key == key) {
-        free(pair);
-        map->data[index] = NULL;
+reactor* createReactor(){
+    reactor *reactorPtr = (reactor *) malloc (sizeof(reactor));
+    if (reactorPtr == NULL){
+        perror("Reactor allocation failiure.\n");
+        EXIT_FAILURE;
     }
+    reactorPtr->size = 0;
+    reactorPtr->isActive = 0;
+    reactorPtr->thread = 0;
+    reactorPtr->listener = -1;
+    printf("Allocation succesful.\n");
+    return reactorPtr;
+
 }
 
-// Free the memory allocated for the hash map
-void free_hashmap(HashMap* map) {
-    for (int i = 0; i < map->capacity; i++) {
-        KeyValuePair* pair = map->data[i];
-        if (pair != NULL) {
-            free(pair);
+void startReactor(reactor* reactor){
+    if(reactor == NULL){
+        perror("reactor pointer not initialized.\n");
+        EXIT_FAILURE;
+    }
+
+    if(reactor->isActive){
+        printf("Reactor is already runnig, no action needed.\n");
+        return;
+    }
+
+    if(reactor->size == 0){
+        printf ("No FDs asgined to the reactor, no operations can be done.\n");
+        return;
+    }
+
+    int createResult = pthread_create(&reactor->thread, NULL, runReactor, NULL);
+    if (createResult != 0){
+        printf("Thread creation failed. Error code: %d\n", createResult);
+        EXIT_FAILURE;
+    }
+
+    reactor->isActive = 1;
+    printf("Thread created successfully.\n");
+
+}
+
+void stopReactor(reactor* reactor){
+    if(reactor == NULL){
+        perror("reactor pointer not initialized.\n");
+        EXIT_FAILURE;
+    }
+
+    if(!reactor->isActive){
+        printf("Reactor not runnig, no action needed.\n");
+        return;
+    }
+
+    reactor->isActive = 0;
+    printf("Reactor thread stopped.\n");
+}
+
+void addFd(reactor* reactor, int fd, handler_t handler){
+    if(reactor == NULL){
+        perror("reactor pointer not initialized.\n");
+        EXIT_FAILURE;
+    }
+    if (reactor->size == CONNECTIONS_NUM){
+        printf("No more connections can be added.\n");
+    }
+    int posToAdd = reactor->size;
+    reactor->fd_handlers[posToAdd].fd = fd;
+    reactor->fd_handlers[posToAdd].handler = handler;
+
+    reactor->fds[posToAdd].fd = fd;
+    reactor->fds[posToAdd].events = POLLIN;
+
+    reactor->size++;
+
+}
+
+void waitFor(reactor* reactor){
+    if (reactor == NULL){
+        perror("reactor pointer not initialized.\n");
+        EXIT_FAILURE;
+    }
+
+    if (!reactor->isActive){
+        return;
+    }
+    void *thread_return = NULL;
+
+    if(pthread_join(reactor->thread, &thread_return) != 0){
+        perror("Error joining the thread.\n");
+        EXIT_FAILURE;
+    }
+    printf("Reactor thread finished\n");
+}
+
+int findPosOfFd(reactor* reactor, int fd){
+    for (int i = 0; i < reactor->size; i++){
+        if (reactor->fds[i].fd == fd){
+            return i;
         }
     }
-    free(map->data);
-    free(map);
+    return -1;
 }
 
-// Example function to be stored in the hash map
-void example_function(int fd) {printf("Called example_function with fd: %d\n", fd);}
 
-void* createReactor(){}
+void removeFd(reactor* reactor, int fd){
+    if (reactor == NULL){
+        perror("reactor pointer not initialized.\n");
+        EXIT_FAILURE;
+    }
 
-void startReactor(void* reactor);
+    int posOfFd = findPosOfFd(reactor, fd);
 
-void stopReactor(void* reactor);
+    for (int i = posOfFd; i < reactor->size -1; i++){
+        reactor->fd_handlers[i] = reactor->fd_handlers[i+1];
+        reactor->fds[i] = reactor->fds[i+1];
+    }
 
-void addFd(void* reactor, int fd, handler_t handler);
-
-void waitFor(void* reactor);
-
-
-
-v
+    reactor->size--;
+}
