@@ -1,13 +1,14 @@
 #include "reactor.h"
 
 
-void *runReactor(reactor *reactor){
+void *runReactor(void *voidReactor){
+    reactor* reactor=(reactorPtr)voidReactor;
     if(reactor == NULL){
         perror("reactor pointer not initialized.\n");
-        EXIT_FAILURE;
+        exit(1);
     }
-    
-    while (reactor->isActive){   
+
+    while (reactor->isActive){
         int poll_count = poll(reactor->fds, reactor->size, -1);
 
         if (poll_count == -1) {
@@ -19,10 +20,10 @@ void *runReactor(reactor *reactor){
             if(reactor->fds[i].fd & POLLIN){
                 reactor->fd_handlers[i].handler(reactor->fds[i].fd, reactor);
             }
-        }    
+        }
     }
     return NULL;
-    
+
 }
 
 reactor* createReactor(){
@@ -40,7 +41,7 @@ reactor* createReactor(){
 
 }
 
-void startReactor(reactor* reactor){
+void startReactor(reactor * reactor){
     if(reactor == NULL){
         perror("reactor pointer not initialized.\n");
         EXIT_FAILURE;
@@ -56,7 +57,7 @@ void startReactor(reactor* reactor){
         return;
     }
 
-    int createResult = pthread_create(&reactor->thread, NULL, runReactor, NULL);
+    int createResult = pthread_create(&reactor->thread, NULL, runReactor, reactor);
     if (createResult != 0){
         printf("Thread creation failed. Error code: %d\n", createResult);
         EXIT_FAILURE;

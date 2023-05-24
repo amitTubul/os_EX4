@@ -16,7 +16,7 @@
 #define CONNECTIONS_NUM 2064
 #define PORT 9034
 
-typedef struct reactor reactor;
+typedef struct reactor reactor,*reactorPtr;
 
 typedef void (*handler_t)(int, reactor *react);
 

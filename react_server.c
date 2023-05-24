@@ -32,7 +32,7 @@ int get_listener_socket() {
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = INADDR_ANY;
-    serverAddress.sin_port = htons(8080); // Change port number if needed
+    serverAddress.sin_port = htons(PORT); // Change port number if needed
 
     // Bind the socket to the server address
     if (bind(listenerSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) == -1) {
